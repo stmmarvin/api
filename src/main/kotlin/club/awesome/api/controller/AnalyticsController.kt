@@ -14,19 +14,15 @@ class AnalyticsController(
     private val rawDataRepository: RawDataRepository
 ) {
 
-    // Veranderd naar GET en RequestParam
     @GetMapping("/query")
     fun queryData(
         @RequestParam sourceId: Long,
-        @RequestParam groupBy: String,   // Bijv: "Jaar"
-        @RequestParam value: String,     // Bijv: "Doden"
-        @RequestParam operation: String  // Bijv: "SUM", "MAX"
-    ): ResponseEntity<List<Map<String, Any>>> {
+        @RequestParam groupBy: String,
+        @RequestParam value: String,
+        @RequestParam operation: String      ): ResponseEntity<List<Map<String, Any>>> {
 
-        // 1. Haal alle data op
         val rawData = rawDataRepository.findBySourceId(sourceId)
 
-        // 2. Zet om naar rijen (Map)
         val rows = rawData.groupBy { it.rowIndex }
             .map { (_, cells) ->
                 cells.associate { it.columnName.lowercase() to (it.dataValue ?: "") }
@@ -35,7 +31,6 @@ class AnalyticsController(
         val groupCol = groupBy.lowercase()
         val valCol = value.lowercase()
 
-        // 3. Groepeer en bereken
         val result = rows
             .filter { it.containsKey(groupCol) && it.containsKey(valCol) }
             .groupBy { it[groupCol] ?: "Onbekend" }

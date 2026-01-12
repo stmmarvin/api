@@ -4,6 +4,9 @@ import club.awesome.api.domain.RawData
 import club.awesome.api.domain.Source
 import club.awesome.api.repo.RawDataRepository
 import club.awesome.api.repo.SourceRepository
+import com.fasterxml.jackson.dataformat.csv.CsvMapper
+import com.fasterxml.jackson.dataformat.csv.CsvSchema
+import org.apache.poi.ss.usermodel.DataFormatter
 import org.apache.poi.ss.usermodel.WorkbookFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -16,18 +19,16 @@ class ImportService(
 ) {
     @Transactional
     fun importFile(inputStream: InputStream, originalFilename: String) {
-        // 1. Check strikt op extensie en kies de juiste leesfunctie
         val rows = when {
             originalFilename.endsWith(".xlsx", ignoreCase = true) -> readXlsx(inputStream)
             originalFilename.endsWith(".csv", ignoreCase = true) -> readCsv(inputStream)
-            else -> throw RuntimeException("Alleen Excel (.xlsx) en CSV (.csv) bestanden zijn toegestaan.")
+            else -> throw RuntimeException("Alleen .xlsx en .csv bestanden toegestaan.")
         }
 
         if (rows.isEmpty()) return
 
         val source = sourceRepository.save(Source(name = originalFilename))
 
-        // 2. Sla de data generiek op
         val dataToSave = rows.flatMapIndexed { rowIndex, row ->
             row.map { (column, value) ->
                 RawData(
@@ -41,41 +42,41 @@ class ImportService(
         rawDataRepository.saveAll(dataToSave)
     }
 
-    // Leest CSV regel voor regel
     private fun readCsv(inputStream: InputStream): List<Map<String, String>> {
-        val reader = inputStream.bufferedReader()
-        val headerLine = reader.readLine() ?: return emptyList()
-        val headers = headerLine.split(",").map { it.trim() }
+        val mapper = CsvMapper()
+        // withQuoteChar('"') zorgt dat "95,6" in CSV goed wordt gelezen
+        val schema = CsvSchema.emptySchema().withHeader().withColumnSeparator(',')
 
-        return reader.lineSequence()
-            .filter { it.isNotBlank() }
-            .map { line ->
-                val values = line.split(",").map { it.trim() }
-                // Zorg dat waarden veilig aan headers gekoppeld worden
-                headers.zip(values + List(headers.size - values.size) { "" }).toMap()
-            }.toList()
+        val iterator = mapper.readerFor(Map::class.java)
+            .with(schema)
+            .readValues<Map<String, String>>(inputStream)
+
+        return iterator.readAll()
     }
 
-    // Leest Excel via Apache POI
     private fun readXlsx(inputStream: InputStream): List<Map<String, String>> {
         val workbook = WorkbookFactory.create(inputStream)
-        val sheet = workbook.getSheetAt(0) // Pakt altijd het eerste tabblad
+        val sheet = workbook.getSheetAt(0)
         val rows = mutableListOf<Map<String, String>>()
 
+        // DataFormatter zorgt dat '95,6' als '95,6' wordt gelezen en '2020' als '2020' (zonder .0)
+        val formatter = DataFormatter()
+
         val headerRow = sheet.getRow(0) ?: return emptyList()
-        val headers = headerRow.map { it.toString().trim() }
+        val headers = headerRow.map { formatter.formatCellValue(it).trim() }
 
         for (i in 1..sheet.lastRowNum) {
             val row = sheet.getRow(i) ?: continue
             val rowMap = mutableMapOf<String, String>()
             var hasData = false
-
             for (j in headers.indices) {
-                val cellValue = row.getCell(j)?.toString()?.trim() ?: ""
+                val cell = row.getCell(j)
+                // Dit is de fix: gebruik formatter in plaats van toString()
+                val cellValue = formatter.formatCellValue(cell).trim()
+
                 if (cellValue.isNotBlank()) hasData = true
                 rowMap[headers[j]] = cellValue
             }
-            // Sla alleen op als de rij niet volledig leeg is
             if (hasData) rows.add(rowMap)
         }
         return rows

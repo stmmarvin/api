@@ -6,9 +6,9 @@
     <title>Smart Data API</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background-color: #f8f9fa; padding-top: 20px; }
+        body { background-color: #f8f9fa; padding-top: 30px; }
         .card { margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        pre { background: #2d2d2d; color: #50fa7b; padding: 15px; border-radius: 5px; max-height: 500px; overflow: auto; }
+        pre { background: #2d2d2d; color: #ee0a0a; padding: 20px; border-radius: 10px; max-height: 600px; overflow: auto; }
     </style>
 </head>
 <body>
@@ -24,32 +24,6 @@
                 <button class="btn btn-success" type="button" onclick="uploadFile()">Uploaden</button>
             </div>
             <div id="uploadStatus" class="text-muted"></div>
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="card-header bg-success text-white">2. Stel een vraag</div>
-        <div class="card-body">
-            <div class="row g-3">
-                <div class="col-md-2">
-                    <label for="sourceIdInput" class="form-label">Bron ID</label>
-                    <input type="number" class="form-control" id="sourceIdInput" placeholder="Bijv. 1" value="1">
-                </div>
-                <div class="col-md-8">
-                    <label for="questionInput" class="form-label">Jouw vraag</label>
-                    <input type="text" class="form-control" id="questionInput" placeholder="Bijv: Hoeveel faillissementen per maand?">
-                </div>
-                <div class="col-md-2 d-flex align-items-end">
-                    <button class="btn btn-primary w-100" onclick="askQuestion()">Verstuur</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="card-header bg-dark text-white">Resultaat (JSON)</div>
-        <div class="card-body">
-            <pre id="jsonOutput">// Hier verschijnt het antwoord...</pre>
         </div>
     </div>
 </div>

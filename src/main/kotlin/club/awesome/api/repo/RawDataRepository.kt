@@ -9,7 +9,9 @@ import org.springframework.stereotype.Repository
 interface RawDataRepository : JpaRepository<RawData, Long> {
     fun findBySourceId(sourceId: Long): List<RawData>
 
-    // Retrieve distinct column names for a source to give context to the interpreter
+    // Retrieve specific columns to reduce data load
+    fun findBySourceIdAndColumnNameIn(sourceId: Long, columnNames: List<String>): List<RawData>
+
     @Query("SELECT DISTINCT r.columnName FROM RawData r WHERE r.source.id = :sourceId")
     fun findHeadersBySourceId(sourceId: Long): List<String>
 }

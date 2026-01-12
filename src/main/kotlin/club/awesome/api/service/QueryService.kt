@@ -14,12 +14,12 @@ class QueryService(
     fun processQuestion(sourceId: Long, question: String): QueryResponse {
         val headers = rawDataRepository.findHeadersBySourceId(sourceId)
 
-
+        // Determine which columns are needed first
         val observation = interpret(headers, question)
 
-
-        val rawData = rawDataRepository.findBySourceId(sourceId)
-
+        // Only fetch the rows for the relevant columns instead of the entire dataset
+        val relevantColumns = listOf(observation.usedGroupBy, observation.usedValueColumn)
+        val rawData = rawDataRepository.findBySourceIdAndColumnNameIn(sourceId, relevantColumns)
 
         val rows = rawData.groupBy { it.rowIndex }
             .map { (_, cells) ->
@@ -28,7 +28,6 @@ class QueryService(
 
         val groupCol = observation.usedGroupBy.lowercase()
         val valCol = observation.usedValueColumn.lowercase()
-
 
         val result = rows
             .filter { it.containsKey(groupCol) && it.containsKey(valCol) }
@@ -50,16 +49,15 @@ class QueryService(
         )
     }
 
+    // ... rest of the file remains the same
     private fun interpret(headers: List<String>, question: String): Observation {
         val lowerQ = question.lowercase()
-
 
         val op = when {
             "gemiddeld" in lowerQ -> "AVERAGE"
             "max" in lowerQ || "hoogste" in lowerQ -> "MAX"
             else -> "SUM"
         }
-
 
         val groupBy = headers.find {
             val h = it.lowercase()
