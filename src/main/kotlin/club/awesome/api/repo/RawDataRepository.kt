@@ -11,4 +11,6 @@ interface RawDataRepository : JpaRepository<RawData, Long> {
     // Retrieve specific columns to reduce data load
     fun findBySourceIdAndColumnNameIn(sourceId: Long, columnNames: List<String>): List<RawData>
 
+    fun deleteBySourceId(sourceId: Long)
+
 }

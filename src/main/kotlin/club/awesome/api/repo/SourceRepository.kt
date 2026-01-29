@@ -7,4 +7,5 @@ import org.springframework.stereotype.Repository
 @Repository
 interface SourceRepository : JpaRepository<Source, Long> {
     fun findBySecretToken(secretToken: String): Source?
+    fun findByOwnerId(ownerId: String): List<Source>
 }

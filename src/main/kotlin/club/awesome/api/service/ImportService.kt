@@ -32,9 +32,17 @@ class ImportService(
         }
     }
 
+    fun isDuplicate(fileName: String, ownerId: String): Boolean {
+        return sourceRepository.findByOwnerId(ownerId).any { it.name == fileName }
+    }
+
     // Saves the imported data and returns the secret token of the source
     @Transactional
-    fun saveImportedData(filename: String, ownerId: String, rows: List<Map<String, String>>): String {
+    fun deleteSource(sourceId: Long) {
+        rawDataRepository.deleteBySourceId(sourceId)
+        sourceRepository.deleteById(sourceId)
+    }
+    fun confirmImport(filename: String, ownerId: String, rows: List<Map<String, String>>): String {
         if (rows.isEmpty()) return ""
         val source = sourceRepository.save(Source(name = filename, ownerId = ownerId))
         val dataToSave = rows.flatMapIndexed { rowIndex, row ->
