@@ -17,67 +17,70 @@ class ImportService(
     private val sourceRepository: SourceRepository,
     private val rawDataRepository: RawDataRepository
 ) {
-    @Transactional
-    fun importFile(inputStream: InputStream, originalFilename: String) {
-        val rows = when {
-            originalFilename.endsWith(".xlsx", ignoreCase = true) -> readXlsx(inputStream)
-            originalFilename.endsWith(".csv", ignoreCase = true) -> readCsv(inputStream)
-            else -> throw RuntimeException("Alleen .xlsx en .csv bestanden toegestaan.")
+    fun parseFile(inputStream: InputStream, filename: String): List<Map<String, String>> {
+        val rawData = when {
+            filename.endsWith(".xlsx", ignoreCase = true) -> readXlsx(inputStream)
+            filename.endsWith(".csv", ignoreCase = true) -> readCsv(inputStream)
+            else -> throw RuntimeException("Onbekend formaat")
         }
 
-        if (rows.isEmpty()) return
+        return rawData.mapIndexed { index, row ->
+            val linkedRow = mutableMapOf<String, String>()
+            linkedRow["id"] = (index + 1).toString()
+            linkedRow.putAll(row)
+            linkedRow
+        }
+    }
 
-        val source = sourceRepository.save(Source(name = originalFilename))
-
+    // Saves the imported data and returns the secret token of the source
+    @Transactional
+    fun saveImportedData(filename: String, ownerId: String, rows: List<Map<String, String>>): String {
+        if (rows.isEmpty()) return ""
+        val source = sourceRepository.save(Source(name = filename, ownerId = ownerId))
         val dataToSave = rows.flatMapIndexed { rowIndex, row ->
-            row.map { (column, value) ->
-                RawData(
-                    source = source,
-                    rowIndex = rowIndex,
-                    columnName = column,
-                    dataValue = value
-                )
+            row.filterKeys { it != "id" }.map { (column, value) ->
+                RawData(source = source, rowIndex = rowIndex, columnName = column, dataValue = value)
             }
         }
         rawDataRepository.saveAll(dataToSave)
+        return source.secretToken
     }
 
+    // Ensures headers are unique by appending suffixes to duplicates
+    private fun makeHeadersUnique(headers: List<String>): List<String> {
+        val counts = mutableMapOf<String, Int>()
+        return headers.map { header ->
+            val clean = header.ifBlank { "Kolom" }
+            val count = counts.getOrDefault(clean, 0)
+            counts[clean] = count + 1
+            if (count > 0) "${clean}_$count" else clean
+        }
+    }
+
+    private fun isRowEmpty(row: Map<String, String>) = row.values.all { it.isBlank() }
+   // Reads CSV file and returns list of rows as maps
     private fun readCsv(inputStream: InputStream): List<Map<String, String>> {
         val mapper = CsvMapper()
-        // withQuoteChar('"') zorgt dat "95,6" in CSV goed wordt gelezen
         val schema = CsvSchema.emptySchema().withHeader().withColumnSeparator(',')
-
-        val iterator = mapper.readerFor(Map::class.java)
-            .with(schema)
-            .readValues<Map<String, String>>(inputStream)
-
-        return iterator.readAll()
+        val rows = mapper.readerFor(Map::class.java).with(schema).readValues<Map<String, String>>(inputStream).readAll()
+        val filtered = rows.filterNot { isRowEmpty(it as Map<String, String>) }
+        return if (filtered.size > 1) filtered.dropLast(1) else filtered
     }
 
     private fun readXlsx(inputStream: InputStream): List<Map<String, String>> {
         val workbook = WorkbookFactory.create(inputStream)
         val sheet = workbook.getSheetAt(0)
         val rows = mutableListOf<Map<String, String>>()
-
-        // DataFormatter zorgt dat '95,6' als '95,6' wordt gelezen en '2020' als '2020' (zonder .0)
         val formatter = DataFormatter()
-
         val headerRow = sheet.getRow(0) ?: return emptyList()
-        val headers = headerRow.map { formatter.formatCellValue(it).trim() }
+        val headers = makeHeadersUnique(headerRow.map { formatter.formatCellValue(it).trim() })
 
-        for (i in 1..sheet.lastRowNum) {
+        for (i in 1 until sheet.lastRowNum) {
             val row = sheet.getRow(i) ?: continue
-            val rowMap = mutableMapOf<String, String>()
-            var hasData = false
-            for (j in headers.indices) {
-                val cell = row.getCell(j)
-                // Dit is de fix: gebruik formatter in plaats van toString()
-                val cellValue = formatter.formatCellValue(cell).trim()
-
-                if (cellValue.isNotBlank()) hasData = true
-                rowMap[headers[j]] = cellValue
+            val rowMap = headers.indices.associate { j ->
+                headers[j] to formatter.formatCellValue(row.getCell(j)).trim()
             }
-            if (hasData) rows.add(rowMap)
+            if (!isRowEmpty(rowMap)) rows.add(rowMap)
         }
         return rows
     }

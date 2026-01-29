@@ -1,8 +1,5 @@
 package club.awesome.api.controller
 
-import club.awesome.api.domain.Source
-import club.awesome.api.repo.RawDataRepository
-import club.awesome.api.repo.SourceRepository
 import club.awesome.api.service.ImportService
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
@@ -10,38 +7,21 @@ import org.springframework.web.multipart.MultipartFile
 
 @RestController
 @RequestMapping("/import")
-class ImportController(
-    private val importService: ImportService,
-    private val rawDataRepository: RawDataRepository,
-    private val sourceRepository: SourceRepository
-) {
-    @PostMapping("/auto")
-    fun uploadFile(@RequestParam("file") file: MultipartFile): ResponseEntity<String> {
-        importService.importFile(file.inputStream, file.originalFilename ?: "file")
-        return ResponseEntity.ok("Bestand succesvol verwerkt.")
+@CrossOrigin(origins = ["http://localhost:8000"])
+class ImportController(private val importService: ImportService) {
+    @PostMapping("/preview")
+    fun previewFile(@RequestParam("file") file: MultipartFile): ResponseEntity<List<Map<String, String>>> {
+        val data = importService.parseFile(file.inputStream, file.originalFilename ?: "file")
+        return ResponseEntity.ok(data)
     }
 
-    @GetMapping("/sources")
-    fun getAllSources(): ResponseEntity<List<Source>> {
-        return ResponseEntity.ok(sourceRepository.findAll())
-    }
-
-    @GetMapping("/data/{sourceId}")
-    fun getData(@PathVariable sourceId: Long): ResponseEntity<List<Map<String, String?>>> {
-        val rawData = rawDataRepository.findBySourceId(sourceId)
-
-        val headers = rawData.map { it.columnName }.distinct().sorted()
-
-        val result = rawData.groupBy { it.rowIndex }
-            .toSortedMap()
-            .map { (_, cells) ->
-                val rowMap = cells.associate { it.columnName to it.dataValue }
-
-                headers.associateWith { header ->
-                    rowMap[header]
-                }
-            }
-
-        return ResponseEntity.ok(result)
+    @PostMapping("/confirm")
+    fun confirm(
+        @RequestParam filename: String,
+        @RequestParam ownerId: String,
+        @RequestBody rows: List<Map<String, String>>
+    ): ResponseEntity<Map<String, String>> {
+        val token = importService.saveImportedData(filename, ownerId, rows)
+        return ResponseEntity.ok(mapOf("token" to token))
     }
 }

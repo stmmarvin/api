@@ -1,0 +1,41 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/theme.json",
+  "title": "Harvest Green",
+  "version": 2,
+  "settings": {
+    "color": {
+      "palette": [
+        {
+          "slug": "primary",
+          "color": "#8b9503",
+          "name": "Primary"
+        },
+        {
+          "slug": "secondary",
+          "color": "#c6ce4a",
+          "name": "Secondary"
+        },
+        {
+          "slug": "tertiary",
+          "color": "#515704",
+          "name": "Tertiary"
+        },
+        {
+          "slug": "heading-color",
+          "color": "#000000",
+          "name": "Heading Color"
+        },
+        {
+          "color": "#000000",
+          "name": "Foreground",
+          "slug": "foreground"
+        },
+        {
+          "color": "#ffffff",
+          "name": "Background",
+          "slug": "background"
+        }
+      ]
+    }
+  }
+}

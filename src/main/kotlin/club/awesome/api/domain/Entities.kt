@@ -2,6 +2,7 @@ package club.awesome.api.domain
 
 import jakarta.persistence.*
 import java.sql.Timestamp
+import java.util.*
 
 @Entity
 @Table(name = "sources")
@@ -9,8 +10,11 @@ data class Source(
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long? = null,
     val name: String,
+    val ownerId: String,
+    @Column(unique = true)
+    val secretToken: String = UUID.randomUUID().toString(),
     @Column(name = "uploaded_at", insertable = false, updatable = false)
-    val uploadedAt: Timestamp? = null
+    val updatedAt: Timestamp? = null
 )
 
 @Entity

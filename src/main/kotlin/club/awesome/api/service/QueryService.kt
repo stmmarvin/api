@@ -3,37 +3,41 @@ package club.awesome.api.service
 import club.awesome.api.dto.Observation
 import club.awesome.api.dto.QueryResponse
 import club.awesome.api.repo.RawDataRepository
+import club.awesome.api.repo.SourceRepository
 import org.springframework.stereotype.Service
 import java.math.BigDecimal
 
 @Service
 class QueryService(
-    private val rawDataRepository: RawDataRepository
+    private val rawDataRepository: RawDataRepository,
+    private val sourceRepository: SourceRepository
 ) {
+    fun processQuestion(secretToken: String, ownerId: String): QueryResponse {
+        val observation = interpret()
+        val result = executeCalculation(secretToken, ownerId, observation)
+        return QueryResponse(result, observation)
+    }
 
-    fun processQuestion(sourceId: Long, question: String): QueryResponse {
-        val headers = rawDataRepository.findHeadersBySourceId(sourceId)
+    fun executeCalculation(secretToken: String, ownerId: String, obs: Observation): List<Map<String, Any>> {
+        val source = sourceRepository.findBySecretToken(secretToken) ?: throw RuntimeException("Niet gevonden")
+        if (source.ownerId != ownerId) throw RuntimeException("Geen toegang")
 
-        // Determine which columns are needed first
-        val observation = interpret(headers, question)
-
-        // Only fetch the rows for the relevant columns instead of the entire dataset
-        val relevantColumns = listOf(observation.usedGroupBy, observation.usedValueColumn)
-        val rawData = rawDataRepository.findBySourceIdAndColumnNameIn(sourceId, relevantColumns)
+        val relevantColumns = listOf(obs.usedGroupBy, obs.usedValueColumn)
+        val rawData = rawDataRepository.findBySourceIdAndColumnNameIn(source.id!!, relevantColumns)
 
         val rows = rawData.groupBy { it.rowIndex }
             .map { (_, cells) ->
                 cells.associate { it.columnName.lowercase() to (it.dataValue ?: "") }
             }
 
-        val groupCol = observation.usedGroupBy.lowercase()
-        val valCol = observation.usedValueColumn.lowercase()
+        val groupCol = obs.usedGroupBy.lowercase()
+        val valCol = obs.usedValueColumn.lowercase()
 
-        val result = rows
+        return rows
             .filter { it.containsKey(groupCol) && it.containsKey(valCol) }
             .groupBy { it[groupCol] ?: "Overig" }
             .map { (group, groupRows) ->
-                val value = when (observation.operation) {
+                val value = when (obs.operation.uppercase()) {
                     "SUM" -> groupRows.sumOf { parse(it[valCol]) }
                     "MAX" -> groupRows.maxOfOrNull { parse(it[valCol]) } ?: BigDecimal.ZERO
                     "COUNT" -> BigDecimal(groupRows.size)
@@ -42,34 +46,10 @@ class QueryService(
                 mapOf("group" to group, "value" to value)
             }
             .sortedByDescending { (it["value"] as BigDecimal) }
-
-        return QueryResponse(
-            answer = result,
-            observation = observation
-        )
     }
 
-    // ... rest of the file remains the same
-    private fun interpret(headers: List<String>, question: String): Observation {
-        val lowerQ = question.lowercase()
-
-        val op = when {
-            "gemiddeld" in lowerQ -> "AVERAGE"
-            "max" in lowerQ || "hoogste" in lowerQ -> "MAX"
-            else -> "SUM"
-        }
-
-        val groupBy = headers.find {
-            val h = it.lowercase()
-            h in lowerQ || (h.contains("period") && (lowerQ.contains("maand") || lowerQ.contains("jaar")))
-        } ?: headers.firstOrNull() ?: "?"
-
-        val valCol = headers.find {
-            val h = it.lowercase()
-            h != groupBy.lowercase() && (h.contains("aantal") || h.contains("waarde"))
-        } ?: headers.lastOrNull() ?: "?"
-
-        return Observation(groupBy, valCol, op)
+    private fun interpret(): Observation {
+        return Observation("categorie", "bedrag", "SUM")
     }
 
     private fun parse(v: String?) = v?.replace(",", ".")?.toBigDecimalOrNull() ?: BigDecimal.ZERO

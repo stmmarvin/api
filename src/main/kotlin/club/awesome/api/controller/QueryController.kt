@@ -3,24 +3,17 @@ package club.awesome.api.controller
 import club.awesome.api.dto.QueryResponse
 import club.awesome.api.service.QueryService
 import org.springframework.http.ResponseEntity
-import org.springframework.web.bind.annotation.GetMapping
-import org.springframework.web.bind.annotation.RequestMapping
-import org.springframework.web.bind.annotation.RequestParam
-import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.bind.annotation.*
 
 @RestController
 @RequestMapping("/query")
-class QueryController(
-    private val queryService: QueryService
-) {
-
-
-    @GetMapping
+class QueryController(private val queryService: QueryService) {
+    @GetMapping("/{secretToken}")
     fun ask(
-        @RequestParam sourceId: Long,
-        @RequestParam q: String
+        @PathVariable secretToken: String,
+        @RequestParam ownerId: String
     ): ResponseEntity<QueryResponse> {
-        val response = queryService.processQuestion(sourceId, q)
+        val response = queryService.processQuestion(secretToken, ownerId)
         return ResponseEntity.ok(response)
     }
 }
